@@ -20,7 +20,8 @@ namespace Core
             Y,
             Z,
             I,
-            J
+            J,
+            IP
         }
 
         const byte REGISTER_MASK = 0x3F;
@@ -30,6 +31,41 @@ namespace Core
         public Operand Index { get; }
         public UInt32 Value { get; }
         public int Size { get; } = 1;
+
+        public Operand(OperandType optype, RegisterType reg = default(RegisterType), Operand index = null, UInt32 value = 0) {
+            OpType = optype;
+            switch (optype) {
+                case OperandType.IndexedRegister:
+                    Index = index;
+                    Size += index.Size;
+                    goto  case OperandType.Register;
+                
+                case OperandType.DereferencedRegister:
+                case OperandType.Register:
+                    Register = reg;
+                    break;
+
+                case OperandType.Constant:
+                    Value = value;
+                    Size += 4;
+                    break;
+            }
+        }
+
+        internal void WriteInto(Span<byte> view)
+        {
+            view[0] = (byte)((byte)OpType | (byte)Register);
+            switch (OpType) {
+                case OperandType.IndexedRegister:
+                    Index.WriteInto(view.Slice(1));
+                    break;
+                
+                case OperandType.Constant:
+                    var bytes = BitConverter.GetBytes(Value);
+                    bytes.CopyTo(view.Slice(1));
+                    break;
+            }
+        }
 
         public Operand(Stream input) {
             var buffer = new byte[4];
